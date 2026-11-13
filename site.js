@@ -87,17 +87,27 @@
     window.addEventListener('resize', function () { if (menuOpen && window.innerWidth >= 768) setMenu(false); });
   }
 
-  /* ── Home background video (25 s loop) ──────────────────────────────── */
-  // Plays muted on repeat; stays paused on its first frame for "reduce motion".
+  /* ── Home background video (10 s loop) ──────────────────────────────── */
+  // Always plays by itself, muted and on repeat, on every device. If a phone blocks autoplay
+  // (iPhone Low Power Mode, Android Data Saver) it starts on the first touch, tap or scroll;
+  // if it gets paused (tab switched, phone locked) it starts again.
   document.querySelectorAll('video[loop]').forEach(function (video) {
     video.muted = true;
-    var reduce = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
+    video.defaultMuted = true;
+    video.setAttribute('muted', '');
+    video.setAttribute('playsinline', '');
+    video.setAttribute('webkit-playsinline', '');
     var sync = function () {
-      if (reduce && reduce.matches) video.pause();
-      else { var p = video.play(); if (p && p.catch) p.catch(function () {}); }
+      if (!video.paused) return;
+      var p = video.play(); if (p && p.catch) p.catch(function () {});
     };
     sync();
-    if (reduce && reduce.addEventListener) reduce.addEventListener('change', sync);
+    ['touchstart', 'pointerdown', 'click', 'scroll', 'keydown'].forEach(function (ev) {
+      window.addEventListener(ev, sync, { passive: true });
+    });
+    video.addEventListener('pause', sync);
+    video.addEventListener('canplay', sync);
+    document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') sync(); });
   });
 
   /* ── Reveal animations ──────────────────────────────────────────────── */
