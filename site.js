@@ -97,11 +97,32 @@
     video.setAttribute('muted', '');
     video.setAttribute('playsinline', '');
     video.setAttribute('webkit-playsinline', '');
+    // Plan B for phones that refuse to autoplay any video (iPhone Low Power Mode): show the same
+    // clip as an image instead. Safari plays MP4 files inside <img> on its own, silently and on
+    // loop, and images aren't blocked. Only swapped in if the image actually loads (Safari).
+    var swapped = false, tried = false;
+    function useImage() {
+      if (tried || !video.paused || !video.parentNode) return;
+      tried = true;
+      var portrait = window.matchMedia && window.matchMedia('(max-aspect-ratio: 4/5)').matches;
+      var srcs = video.querySelectorAll('source');
+      var src = (portrait ? srcs[0] : srcs[srcs.length - 1] || srcs[0]).getAttribute('src');
+      var img = new Image();
+      img.alt = '';
+      img.setAttribute('aria-hidden', 'true');
+      img.className = video.className;
+      // Browsers that can't show MP4 as an image just fail here; the video then starts on first touch instead.
+      img.onload = function () { if (video.paused && video.parentNode) { swapped = true; video.parentNode.replaceChild(img, video); } };
+      img.src = src;
+    }
     var sync = function () {
-      if (!video.paused) return;
-      var p = video.play(); if (p && p.catch) p.catch(function () {});
+      if (swapped || !video.paused) return;
+      var p = video.play();
+      if (p && p.catch) p.catch(function (err) { if (err && err.name === 'NotAllowedError') useImage(); });
     };
     sync();
+    // If it still hasn't started shortly after loading, use the image version.
+    setTimeout(function () { if (video.paused && document.visibilityState === 'visible') useImage(); }, 1500);
     ['touchstart', 'pointerdown', 'click', 'scroll', 'keydown'].forEach(function (ev) {
       window.addEventListener(ev, sync, { passive: true });
     });
